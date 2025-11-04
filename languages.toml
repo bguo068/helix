@@ -1,7 +1,8 @@
 # Language support configuration.
 # See the languages documentation: https://docs.helix-editor.com/master/languages.html
 
-use-grammars = { except = [ "wren", "gemini" ] }
+# use-grammars = { except = [ "wren", "gemini" ] }
+use-grammars = { only = [ "python", "r" ] }
 
 [language-server]
 
@@ -103,13 +104,13 @@ prisma-language-server = { command = "prisma-language-server", args = ["--stdio"
 purescript-language-server = { command = "purescript-language-server", args = ["--stdio"] }
 pylsp = { command = "pylsp" }
 pyrefly = { command = "pyrefly", args = ["lsp"] }
-pyright = { command = "pyright-langserver", args = ["--stdio"], config = {} }
+pyright = { command = "pyright-langserver", args = ["--stdio"], config = {python={analysis={typeCheckingMode = "off"}}} }
 protols = { command = "protols", args = [] }
 basedpyright = { command = "basedpyright-langserver", args = ["--stdio"], config = {} }
 pylyzer = { command = "pylyzer", args = ["--server"] }
 qmlls = { command = "qmlls" }
 quint-language-server = { command = "quint-language-server", args = ["--stdio"] }
-r = { command = "R", args = ["--no-echo", "-e", "languageserver::run()"] }
+r = { command = "R", args = ["--no-echo", "-e", "languageserver::run()"], config = {r = {lsp = {diagnostics = false}}} }
 racket = { command = "racket", args = ["-l", "racket-langserver"] }
 regols = { command = "regols" }
 rescript-language-server = { command = "rescript-language-server", args = ["--stdio"] }
@@ -1056,7 +1057,7 @@ file-types = ["py", "pyi", "py3", "pyw", "ptl", "rpy", "cpy", "ipy", "pyt", { gl
 shebangs = ["python", "uv"]
 roots = ["pyproject.toml", "setup.py", "poetry.lock", "pyrightconfig.json"]
 comment-token = "#"
-language-servers = ["ty", "ruff", "jedi", "pylsp"]
+language-servers = ["pyright", "ruff", "ty", "jedi", "pylsp"]
 # TODO: pyls needs utf-8 offsets
 indent = { tab-width = 4, unit = "    " }
 
