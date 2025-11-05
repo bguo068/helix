@@ -824,7 +824,8 @@ fn send_text_multiplexer(text: String, target: Option<String>) -> Result<(), Str
                 .arg("--pane-id")
                 .arg(pane_id)
                 .arg(&content);
-            cmd.output().unwrap();
+            cmd.output()
+                .map_err(|_| format!("ERROR in wezterm send-text --pane-id {pane_id}"))?;
             let mut cmd = process::Command::new("wezterm");
             cmd.arg("cli")
                 .arg("send-text")
@@ -832,7 +833,9 @@ fn send_text_multiplexer(text: String, target: Option<String>) -> Result<(), Str
                 .arg("--pane-id")
                 .arg(pane_id)
                 .arg("\n");
-            cmd.output().unwrap();
+            cmd.output().map_err(|_| {
+                format!("ERROR in wezterm send-text --pane-id {pane_id} --no-paste")
+            })?;
         }
         "zellij" => {
             let direction = which.as_str();
@@ -851,7 +854,9 @@ fn send_text_multiplexer(text: String, target: Option<String>) -> Result<(), Str
 
             let mut cmd_before = process::Command::new("zellij");
             cmd_before.args(["action", "move-focus", direction]);
-            cmd_before.output().unwrap();
+            cmd_before
+                .output()
+                .map_err(|_| format!("ERROR in zellij action move-focus {direction}"))?;
 
             let mut cmd = process::Command::new("zellij");
             cmd.args(["action", "write"]);
@@ -859,11 +864,14 @@ fn send_text_multiplexer(text: String, target: Option<String>) -> Result<(), Str
             cmd.args(content_byte_str.trim().split(' ')); // actually content
             cmd.args(["27", "91", "50", "48", "49", "126"]); // paste mode ending part
             cmd.args(["10"]); // add a return byte
-            cmd.output().unwrap();
+            cmd.output()
+                .map_err(|_| format!("ERROR in zellij action write <bytes>"))?;
 
             let mut cmd_after = process::Command::new("zellij");
             cmd_after.args(["action", "move-focus", back_direction]);
-            cmd_after.output().unwrap();
+            cmd_after
+                .output()
+                .map_err(|_| format!("ERROR in zellij action move-focus {back_direction}"))?;
         }
         "tmux" => {
             use std::io::Write;
@@ -878,13 +886,15 @@ fn send_text_multiplexer(text: String, target: Option<String>) -> Result<(), Str
                 .arg(target)
                 .arg(std::str::from_utf8(&escape_200_tilde_bytes).unwrap())
                 .output()
-                .unwrap(); // Only send the escape sequenc
+                .map_err(|_| format!("ERROR in tmux send-keys -t {target} <str>"))?;
 
             // load buffer
             use std::process::Stdio;
             let mut cmd = process::Command::new("tmux");
             cmd.arg("load-buffer").arg("-").stdin(Stdio::piped());
-            let mut child = cmd.spawn().unwrap();
+            let mut child = cmd
+                .spawn()
+                .map_err(|_| format!("ERROR in tmux load-buffer -"))?;
             let mut stdin = child.stdin.take().unwrap();
             stdin.write_all(content.as_bytes()).unwrap();
             drop(stdin);
@@ -893,7 +903,8 @@ fn send_text_multiplexer(text: String, target: Option<String>) -> Result<(), Str
             // paste buffer
             let mut cmd = process::Command::new("tmux");
             cmd.arg("paste-buffer").arg("-t").arg(target);
-            cmd.output().unwrap();
+            cmd.output()
+                .map_err(|_| format!("ERROR in tmux paste-buffer -t {target}"))?;
 
             // send paste mode end
             let escape_201_tilde_bytes = [0x1B, b'[', b'2', b'0', b'1', b'~']; // \e[201~
@@ -905,7 +916,7 @@ fn send_text_multiplexer(text: String, target: Option<String>) -> Result<(), Str
                 .arg(std::str::from_utf8(&escape_201_tilde_bytes).unwrap())
                 .arg("\n")
                 .output()
-                .unwrap(); // Only send the escape sequenc
+                .map_err(|_| format!("ERROR in tmux send-keys -t {target} <str>"))?;
         }
         _ => return Err("only tmux, zellij and wezterm are supported".to_owned()),
     }
