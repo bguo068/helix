@@ -2,7 +2,7 @@
 # See the languages documentation: https://docs.helix-editor.com/master/languages.html
 
 # use-grammars = { except = [ "wren", "gemini" ] }
-use-grammars = { only = [ "python", "r" ] }
+use-grammars = { only = [ "python", "r", "rust", "typst", "latex", "markdown", "cpp" ] }
 
 [language-server]
 
