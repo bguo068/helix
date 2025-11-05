@@ -6,6 +6,9 @@ use helix_core::hashmap;
 
 pub fn default() -> HashMap<Mode, KeyTrie> {
     let normal = keymap!({ "Normal mode"
+        "\\" => { "Send"
+                "\\" => send_normal,
+            },
         "h" | "left" => move_char_left,
         "j" | "down" => move_visual_line_down,
         "k" | "up" => move_visual_line_up,
@@ -341,6 +344,9 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
     });
     let mut select = normal.clone();
     select.merge_nodes(keymap!({ "Select mode"
+        "\\" => { "Send"
+                "\\" => send_select,
+            },
         "h" | "left" => extend_char_left,
         "j" | "down" => extend_visual_line_down,
         "k" | "up" => extend_visual_line_up,
