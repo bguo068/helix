@@ -616,6 +616,8 @@ impl MappableCommand {
         goto_prev_tabstop, "Goto next snippet placeholder",
         rotate_selections_first, "Make the first selection your primary one",
         rotate_selections_last, "Make the last selection your primary one",
+        send_normal, "Send selected/current line [NOR]",
+        send_select,"Send selected text [SEL]",
     );
 }
 
@@ -748,6 +750,168 @@ fn move_impl(cx: &mut Context, move_fn: MoveFn, dir: Direction, behaviour: Movem
 }
 
 use helix_core::movement::{move_horizontally, move_vertically};
+
+fn send_normal(cx: &mut Context) {
+    let (view, doc) = current!(cx.editor);
+    let selection = doc.selection(view.id);
+    let text = doc.text().slice(..);
+    // get line text
+    let rng = selection.primary();
+    let mut s = rng.head;
+    let mut e = rng.anchor;
+    if s > e {
+        std::mem::swap(&mut s, &mut e);
+    }
+    let s_line = text.char_to_line(s);
+    let e_line = text.char_to_line(e);
+    if s_line == e_line {
+        s = text.line_to_char(s_line);
+        e = text.line_to_char(s_line + 1);
+    }
+    let selected_text = text.slice(s..e).as_str().unwrap_or("").to_owned();
+    let target = doc.config.load().send_target.clone();
+    if let Err(e) = send_text_multiplexer(selected_text.clone(), target.clone()) {
+        cx.editor.set_status(e);
+    }
+}
+
+fn send_select(cx: &mut Context) {
+    let (view, doc) = current!(cx.editor);
+    let selection = doc.selection(view.id);
+    let text = doc.text().slice(..);
+    // get line text
+    let rng = selection.primary();
+    let mut s = rng.head;
+    let mut e = rng.anchor;
+    if s > e {
+        std::mem::swap(&mut s, &mut e);
+    }
+    let selected_text = text.slice(s..e).as_str().unwrap_or("").to_owned();
+    let target = doc.config.load().send_target.clone();
+    if let Err(e) = send_text_multiplexer(selected_text.clone(), target.clone()) {
+        cx.editor.set_status(e);
+    }
+}
+
+fn send_text_multiplexer(text: String, target: Option<String>) -> Result<(), String> {
+    let (mutiplexer, which) = match target {
+        Some(target) => {
+            let mut splits = target.split(" ");
+            let muliplexer = match splits.next() {
+                Some(t) => t.to_owned(),
+                None => return Err("missing fields for multiplexer".to_owned()),
+            };
+            let which = match splits.next() {
+                Some(t) => t.to_owned(),
+                None => return Err("missing fields for target".to_owned()),
+            };
+            (muliplexer, which)
+        }
+        None => ("tmux".to_owned(), ":0.1".to_owned()),
+    };
+    use std::process;
+
+    let mut content = text;
+    if content.ends_with("\n") {
+        content.pop();
+    }
+    match mutiplexer.as_str() {
+        "wezterm" => {
+            let pane_id = which.as_str();
+            let mut cmd = process::Command::new("wezterm");
+            cmd.arg("cli")
+                .arg("send-text")
+                .arg("--pane-id")
+                .arg(pane_id)
+                .arg(&content);
+            cmd.output().unwrap();
+            let mut cmd = process::Command::new("wezterm");
+            cmd.arg("cli")
+                .arg("send-text")
+                .arg("--no-paste")
+                .arg("--pane-id")
+                .arg(pane_id)
+                .arg("\n");
+            cmd.output().unwrap();
+        }
+        "zellij" => {
+            let direction = which.as_str();
+            let back_direction = match direction {
+                "left" => "right",
+                "right" => "left",
+                "up" => "down",
+                "down" => "up",
+                _ => return Err("zellij direction can only left, right, up and down".to_owned()),
+            };
+            let mut content_byte_str = String::new();
+            for byte in content.bytes() {
+                use std::fmt::Write;
+                write!(&mut content_byte_str, "{byte} ").unwrap();
+            }
+
+            let mut cmd_before = process::Command::new("zellij");
+            cmd_before.args(["action", "move-focus", direction]);
+            cmd_before.output().unwrap();
+
+            let mut cmd = process::Command::new("zellij");
+            cmd.args(["action", "write"]);
+            cmd.args(["27", "91", "50", "48", "48", "126"]); // paste mode leading part
+            cmd.args(content_byte_str.trim().split(' ')); // actually content
+            cmd.args(["27", "91", "50", "48", "49", "126"]); // paste mode ending part
+            cmd.args(["10"]); // add a return byte
+            cmd.output().unwrap();
+
+            let mut cmd_after = process::Command::new("zellij");
+            cmd_after.args(["action", "move-focus", back_direction]);
+            cmd_after.output().unwrap();
+        }
+        "tmux" => {
+            use std::io::Write;
+            let target = which.as_str();
+
+            // send paste mode start
+            let escape_200_tilde_bytes = [0x1B, b'[', b'2', b'0', b'0', b'~']; // \e[201~
+            let mut command = process::Command::new("tmux");
+            command
+                .arg("send-keys")
+                .arg("-t")
+                .arg(target)
+                .arg(std::str::from_utf8(&escape_200_tilde_bytes).unwrap())
+                .output()
+                .unwrap(); // Only send the escape sequenc
+
+            // load buffer
+            use std::process::Stdio;
+            let mut cmd = process::Command::new("tmux");
+            cmd.arg("load-buffer").arg("-").stdin(Stdio::piped());
+            let mut child = cmd.spawn().unwrap();
+            let mut stdin = child.stdin.take().unwrap();
+            stdin.write_all(content.as_bytes()).unwrap();
+            drop(stdin);
+            child.wait_with_output().unwrap();
+
+            // paste buffer
+            let mut cmd = process::Command::new("tmux");
+            cmd.arg("paste-buffer").arg("-t").arg(target);
+            cmd.output().unwrap();
+
+            // send paste mode end
+            let escape_201_tilde_bytes = [0x1B, b'[', b'2', b'0', b'1', b'~']; // \e[201~
+            let mut command = process::Command::new("tmux");
+            command
+                .arg("send-keys")
+                .arg("-t")
+                .arg(target)
+                .arg(std::str::from_utf8(&escape_201_tilde_bytes).unwrap())
+                .arg("\n")
+                .output()
+                .unwrap(); // Only send the escape sequenc
+        }
+        _ => return Err("only tmux, zellij and wezterm are supported".to_owned()),
+    }
+
+    Ok(())
+}
 
 fn move_char_left(cx: &mut Context) {
     move_impl(cx, move_horizontally, Direction::Backward, Movement::Move)
