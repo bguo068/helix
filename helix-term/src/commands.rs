@@ -763,7 +763,7 @@ fn send_normal(cx: &mut Context) {
         std::mem::swap(&mut s, &mut e);
     }
     let s_line = text.char_to_line(s);
-    let e_line = text.char_to_line(e);
+    let e_line = text.char_to_line(e - 1);
     if s_line == e_line {
         s = text.line_to_char(s_line);
         e = text.line_to_char(s_line + 1);
@@ -865,7 +865,7 @@ fn send_text_multiplexer(text: String, target: Option<String>) -> Result<(), Str
             cmd.args(["27", "91", "50", "48", "49", "126"]); // paste mode ending part
             cmd.args(["10"]); // add a return byte
             cmd.output()
-                .map_err(|_| format!("ERROR in zellij action write <bytes>"))?;
+                .map_err(|_| "ERROR in zellij action write <bytes>".to_owned())?;
 
             let mut cmd_after = process::Command::new("zellij");
             cmd_after.args(["action", "move-focus", back_direction]);
@@ -894,7 +894,7 @@ fn send_text_multiplexer(text: String, target: Option<String>) -> Result<(), Str
             cmd.arg("load-buffer").arg("-").stdin(Stdio::piped());
             let mut child = cmd
                 .spawn()
-                .map_err(|_| format!("ERROR in tmux load-buffer -"))?;
+                .map_err(|_| "ERROR in tmux load-buffer -".to_owned())?;
             let mut stdin = child.stdin.take().unwrap();
             stdin.write_all(content.as_bytes()).unwrap();
             drop(stdin);
