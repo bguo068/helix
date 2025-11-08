@@ -8,6 +8,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
     let normal = keymap!({ "Normal mode"
         "\\" => { "Send"
                 "\\" => send_normal,
+                "c" => send_normal_cell,
             },
         "h" | "left" => move_char_left,
         "j" | "down" => move_visual_line_down,
@@ -346,6 +347,7 @@ pub fn default() -> HashMap<Mode, KeyTrie> {
     select.merge_nodes(keymap!({ "Select mode"
         "\\" => { "Send"
                 "\\" => send_select,
+                "c" => send_select_cell,
             },
         "h" | "left" => extend_char_left,
         "j" | "down" => extend_visual_line_down,

@@ -617,7 +617,9 @@ impl MappableCommand {
         rotate_selections_first, "Make the first selection your primary one",
         rotate_selections_last, "Make the last selection your primary one",
         send_normal, "Send selected/current line [NOR]",
+        send_normal_cell, "Send current cell [NOR]",
         send_select,"Send selected text [SEL]",
+        send_select_cell, "Send current cell [NOR]",
     );
 }
 
@@ -774,6 +776,23 @@ fn send_normal(cx: &mut Context) {
         cx.editor.set_status(e);
     }
 }
+fn send_normal_cell(cx: &mut Context) {
+    let (view, doc) = current!(cx.editor);
+    let selection = doc.selection(view.id);
+    let slice = doc.text().slice(..);
+    let rng = selection.primary();
+    let cell_rng = get_text_in_cell(slice, rng);
+    let mut s = cell_rng.head;
+    let mut e = cell_rng.anchor;
+    if s > e {
+        std::mem::swap(&mut s, &mut e);
+    }
+    let cell_text = slice.slice(s..e).as_str().unwrap_or("").to_owned();
+    let target = doc.config.load().send_target.clone();
+    if let Err(e) = send_text_multiplexer(cell_text.clone(), target.clone()) {
+        cx.editor.set_status(e);
+    }
+}
 
 fn send_select(cx: &mut Context) {
     let (view, doc) = current!(cx.editor);
@@ -791,6 +810,10 @@ fn send_select(cx: &mut Context) {
     if let Err(e) = send_text_multiplexer(selected_text.clone(), target.clone()) {
         cx.editor.set_status(e);
     }
+}
+
+fn send_select_cell(cx: &mut Context) {
+    send_normal_cell(cx);
 }
 
 fn send_text_multiplexer(text: String, target: Option<String>) -> Result<(), String> {
@@ -922,6 +945,51 @@ fn send_text_multiplexer(text: String, target: Option<String>) -> Result<(), Str
     }
 
     Ok(())
+}
+
+fn get_text_in_cell(slice: RopeSlice, range: Range) -> Range {
+    let text = slice;
+    let total_lines = text.len_lines();
+    let cursor_line = range.cursor_line(text);
+
+    // Minimal marker test without introducing regex dependency:
+    // allow leading whitespace, then literal ">#", optional whitespace, then "%%" at the line start.
+    fn is_marker_line(line_slice: RopeSlice) -> bool {
+        let mut s = line_slice.to_string();
+        // strip trailing newline if any
+        if let Some('\n') = s.chars().last() {
+            s.pop();
+        }
+        // let trimmed_leading = s.trim_start();
+        let trimmed_leading = s;
+        if !trimmed_leading.starts_with("#") {
+            return false;
+        }
+        let after = &trimmed_leading[1..]; // after ">#"
+        after.trim_start().starts_with("%%")
+    }
+
+    // find start marker at or above cursor_line
+    let start_line_opt = (0..=cursor_line)
+        .rev()
+        .find(|&ln| is_marker_line(text.line(ln)));
+    let start_line = match start_line_opt {
+        Some(ln) => ln,
+        None => {
+            // no start marker: do not change selection
+            return range;
+        }
+    };
+
+    // find end marker after start_line (strictly after); if not found, set to last line
+    let end_line_opt = ((start_line + 1)..total_lines).find(|&ln| is_marker_line(text.line(ln)));
+    let end_line = end_line_opt.unwrap_or(total_lines.saturating_sub(1));
+
+    // start at the beginning of start_line, end at the char index of line after end_line
+    let start_char = text.line_to_char(start_line);
+    let end_char = text.line_to_char((end_line + 1).min(total_lines));
+
+    Range::new(start_char, end_char).with_direction(range.direction())
 }
 
 fn move_char_left(cx: &mut Context) {
