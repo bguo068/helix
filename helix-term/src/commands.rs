@@ -770,7 +770,7 @@ fn send_normal(cx: &mut Context) {
         s = text.line_to_char(s_line);
         e = text.line_to_char(s_line + 1);
     }
-    let selected_text = text.slice(s..e).as_str().unwrap_or("").to_owned();
+    let selected_text = text.slice(s..e).to_string();
     let target = doc.config.load().send_target.clone();
     if let Err(e) = send_text_multiplexer(selected_text.clone(), target.clone()) {
         cx.editor.set_status(e);
@@ -787,7 +787,7 @@ fn send_normal_cell(cx: &mut Context) {
     if s > e {
         std::mem::swap(&mut s, &mut e);
     }
-    let cell_text = slice.slice(s..e).as_str().unwrap_or("").to_owned();
+    let cell_text = slice.slice(s..e).to_string();
     let target = doc.config.load().send_target.clone();
     if let Err(e) = send_text_multiplexer(cell_text.clone(), target.clone()) {
         cx.editor.set_status(e);
@@ -805,7 +805,7 @@ fn send_select(cx: &mut Context) {
     if s > e {
         std::mem::swap(&mut s, &mut e);
     }
-    let selected_text = text.slice(s..e).as_str().unwrap_or("").to_owned();
+    let selected_text = text.slice(s..e).to_string();
     let target = doc.config.load().send_target.clone();
     if let Err(e) = send_text_multiplexer(selected_text.clone(), target.clone()) {
         cx.editor.set_status(e);
