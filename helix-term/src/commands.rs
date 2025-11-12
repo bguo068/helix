@@ -764,11 +764,18 @@ fn send_normal(cx: &mut Context) {
     if s > e {
         std::mem::swap(&mut s, &mut e);
     }
-    let s_line = text.char_to_line(s);
-    let e_line = text.char_to_line(e - 1);
-    if s_line == e_line {
-        s = text.line_to_char(s_line);
-        e = text.line_to_char(s_line + 1);
+    // If a single letter selected, send whole line; Otherwise send what is
+    // selected. Why? When users want to send a word by press 'w', the editor
+    // mode is still normal for helix which is different from vim. This will not
+    // trigger send_select, so we need to mimic what send_select does, i.e. only
+    // send the select word even if it is still normal mode.
+    if e - s == 1 {
+        let s_line = text.char_to_line(s);
+        let e_line = text.char_to_line(e - 1);
+        if s_line == e_line {
+            s = text.line_to_char(s_line);
+            e = text.line_to_char(s_line + 1);
+        }
     }
     let selected_text = text.slice(s..e).to_string();
     let target = doc.config.load().send_target.clone();
