@@ -24,6 +24,7 @@
 | cairo | ✓ | ✓ | ✓ |  |  | `cairo-language-server` |
 | capnp | ✓ |  | ✓ |  |  |  |
 | cel | ✓ |  |  |  |  |  |
+| chuck | ✓ |  |  |  |  |  |
 | circom | ✓ |  |  |  |  | `circom-lsp` |
 | clarity | ✓ |  |  |  |  | `clarinet` |
 | clojure | ✓ | ✓ | ✓ |  | ✓ | `clojure-lsp` |
@@ -253,7 +254,7 @@
 | snakemake | ✓ |  | ✓ |  |  | `pylsp` |
 | solidity | ✓ | ✓ |  |  |  | `solc` |
 | sourcepawn | ✓ | ✓ |  |  |  | `sourcepawn-studio` |
-| spade | ✓ |  | ✓ |  |  | `spade-language-server` |
+| spade | ✓ |  | ✓ |  | ✓ | `spade-language-server` |
 | spicedb | ✓ |  |  | ✓ |  |  |
 | sql | ✓ | ✓ |  |  |  |  |
 | sshclientconfig | ✓ |  |  |  |  |  |
@@ -305,6 +306,7 @@
 | wgsl | ✓ | ✓ | ✓ | ✓ | ✓ | `wgsl-analyzer` |
 | wikitext | ✓ |  |  |  |  | `wikitext-lsp` |
 | wit | ✓ |  | ✓ |  |  |  |
+| woodpecker-ci | ✓ | ✓ | ✓ | ✓ | ✓ | `yaml-language-server` |
 | wren | ✓ | ✓ | ✓ |  |  |  |
 | xit | ✓ |  |  |  |  |  |
 | xml | ✓ | ✓ | ✓ |  | ✓ |  |

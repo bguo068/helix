@@ -591,6 +591,10 @@ file-types = [
   "sublime-workspace",
   "code-workspace",
   { glob = ".pytest_cache/v/cache/*" }, # https://docs.pytest.org/en/latest/reference/reference.html#confval-cache_dir
+  { glob = "devenv.lock" }, # https://devenv.sh/
+  { glob = "devbox.lock" }, # https://www.jetify.com/docs/devbox/
+  { glob = "manifest.lock" }, # https://flox.dev/docs/
+  { glob = "deno.lock" }, # https://deno.com/
 ]
 language-servers = [ "vscode-json-language-server" ]
 auto-format = true
@@ -3683,7 +3687,7 @@ indent = { tab-width = 3, unit = "   " }
 
 [[grammar]]
 name = "forth"
-source = { git = "https://github.com/alexanderbrevig/tree-sitter-forth", rev = "90189238385cf636b9ee99ce548b9e5b5e569d48" }
+source = { git = "https://github.com/alexanderbrevig/tree-sitter-forth", rev = "360ef13f8c609ec6d2e80782af69958b84e36cd0" }
 
 [[language]]
 name = "fsharp"
@@ -4492,7 +4496,7 @@ indent = { tab-width = 4, unit = "    " }
 
 [[grammar]]
 name = "spade"
-source = { git = "https://gitlab.com/spade-lang/tree-sitter-spade", rev = "78bf09a88fc1d396f66b69879f908fc6bd2e6934" }
+source = { git = "https://gitlab.com/spade-lang/tree-sitter-spade", rev = "6569cd11cc9362e277845ce24111735059b145ee" }
 
 [[language]]
 name = "amber"
@@ -5105,3 +5109,33 @@ language-servers = [ "ripple-lsp" ]
 [[grammar]]
 name = "ripple"
 source = { git = "https://github.com/Ripple-TS/ripple", rev = "49762f0a63de0d1845fcd2e6632639c095995336", subpath = "packages/tree-sitter" }
+
+[[language]]
+name = "woodpecker-ci"
+scope = "source.woodpecker-ci"
+injection-regex = "^woodpecker-ci$"
+# https://woodpecker-ci.org/docs/usage/workflows
+file-types = [
+  { glob = ".woodpecker.yaml" },
+  { glob = ".woodpecker/*.yaml" },
+  { glob = ".woodpecker/*.yml" },
+]
+grammar = "yaml"
+indent = { tab-width = 2, unit = "  " }
+language-servers = ["yaml-language-server"]
+comment-token = "#"
+formatter = { command = "yamlfmt", args = ['-'] }
+auto-format = true
+
+[[language]]
+name = "chuck"
+scope = "source.ck"
+comment-tokens = "//"
+block-comment-tokens = { start = "/*", end = "*/" }
+file-types = [{ glob = "*.ck" }]
+indent = { tab-width = 4, unit="    "}
+injection-regex = "^chuck$|^ck$"
+
+[[grammar]]
+name = "chuck"
+source = { git = "https://github.com/tymbalodeon/tree-sitter-chuck", rev = "2fd18bcd48e7b23ee47f854e639020df90b1270b" }
