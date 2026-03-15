@@ -334,6 +334,7 @@ block-comment-tokens = [
 language-servers = [ "rust-analyzer" ]
 indent = { tab-width = 4, unit = "    " }
 persistent-diagnostic-sources = ["rustc", "clippy"]
+soft-wrap = { enable = true }
 
 [language.auto-pairs]
 '(' = ')'
@@ -1153,6 +1154,7 @@ comment-token = "#"
 language-servers = ["pyright", "ruff", "ty", "jedi", "pylsp"]
 # TODO: pyls needs utf-8 offsets
 indent = { tab-width = 4, unit = "    " }
+soft-wrap = { enable = true }
 
 [[grammar]]
 name = "python"
@@ -2504,6 +2506,7 @@ shebangs = ["r", "R"]
 comment-tokens = ["#", "#'"]
 indent = { tab-width = 2, unit = "  " }
 language-servers = [ "r" ]
+soft-wrap = { enable = true }
 
 [[grammar]]
 name = "r"
