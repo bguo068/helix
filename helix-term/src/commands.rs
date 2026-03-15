@@ -841,29 +841,29 @@ fn send_text_multiplexer(text: String, target: Option<String>) -> Result<(), Str
     };
     use std::process;
 
-    let mut content = text;
-    if content.ends_with("\n") {
-        content.pop();
-    }
+    let mut content = text.trim_end().to_owned();
+    // always to add \n to end the block like the indentation for python
+    content.push_str("\n");
     match mutiplexer.as_str() {
         "wezterm" => {
             let pane_id = which.as_str();
-            let mut cmd = process::Command::new("wezterm");
-            cmd.arg("cli")
+            let mut cmd1 = process::Command::new("wezterm");
+            cmd1.arg("cli")
                 .arg("send-text")
                 .arg("--pane-id")
                 .arg(pane_id)
                 .arg(&content);
-            cmd.output()
+            cmd1.output()
                 .map_err(|_| format!("ERROR in wezterm send-text --pane-id {pane_id}"))?;
-            let mut cmd = process::Command::new("wezterm");
-            cmd.arg("cli")
+
+            let mut cmd2 = process::Command::new("wezterm");
+            cmd2.arg("cli")
                 .arg("send-text")
                 .arg("--no-paste")
                 .arg("--pane-id")
                 .arg(pane_id)
                 .arg("\n");
-            cmd.output().map_err(|_| {
+            cmd2.output().map_err(|_| {
                 format!("ERROR in wezterm send-text --pane-id {pane_id} --no-paste")
             })?;
         }
@@ -990,7 +990,7 @@ fn get_text_in_cell(slice: RopeSlice, range: Range) -> Range {
 
     // find end marker after start_line (strictly after); if not found, set to last line
     let end_line_opt = ((start_line + 1)..total_lines).find(|&ln| is_marker_line(text.line(ln)));
-    let end_line = end_line_opt.unwrap_or(total_lines.saturating_sub(1));
+    let end_line = end_line_opt.unwrap_or(total_lines).saturating_sub(1);
 
     // start at the beginning of start_line, end at the char index of line after end_line
     let start_char = text.line_to_char(start_line);
