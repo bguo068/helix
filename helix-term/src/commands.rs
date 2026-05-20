@@ -967,8 +967,8 @@ fn get_text_in_cell(slice: RopeSlice, range: Range) -> Range {
         if let Some('\n') = s.chars().last() {
             s.pop();
         }
-        // let trimmed_leading = s.trim_start();
-        let trimmed_leading = s;
+        let trimmed_leading = s.trim_start();
+        // let trimmed_leading = s;
         if !trimmed_leading.starts_with("#") {
             return false;
         }
