@@ -578,7 +578,7 @@ impl Default for LspConfig {
             display_messages: true,
             auto_signature_help: true,
             display_signature_help_docs: true,
-            display_inlay_hints: false,
+            display_inlay_hints: true,
             auto_document_highlight: false,
             inlay_hints_length_limit: None,
             snippets: true,
