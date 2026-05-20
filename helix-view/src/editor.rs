@@ -15,6 +15,7 @@ use crate::{
     Document, DocumentId, View, ViewId,
 };
 use helix_event::dispatch;
+use helix_loader::workspace_trust::TrustStatus;
 use helix_vcs::DiffProviderRegistry;
 
 use futures_util::stream::select_all::SelectAll;
@@ -433,6 +434,8 @@ pub struct Config {
     pub buffer_picker: BufferPickerConfig,
     /// Send target, such as "tmux :0.1" or "wezterm 2"
     pub send_target: Option<String>,
+    /// Whether to implicitly trust every workspace or not
+    pub insecure: bool,
 }
 
 #[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize, Clone, Copy)]
@@ -1156,6 +1159,7 @@ impl Default for Config {
             kitty_keyboard_protocol: Default::default(),
             buffer_picker: BufferPickerConfig::default(),
             send_target: Some("tmux :0.1".to_owned()),
+            insecure: false,
         }
     }
 }
@@ -1483,26 +1487,26 @@ impl Editor {
             .unwrap_or(false)
     }
 
-    pub fn unset_theme_preview(&mut self) {
+    pub fn unset_theme_preview(&mut self) -> anyhow::Result<()> {
         if let Some(last_theme) = self.last_theme.take() {
-            self.set_theme(last_theme);
+            self.set_theme(last_theme)?;
         }
         // None likely occurs when the user types ":theme" and then exits before previewing
+        Ok(())
     }
 
-    pub fn set_theme_preview(&mut self, theme: Theme) {
-        self.set_theme_impl(theme, ThemeAction::Preview);
+    pub fn set_theme_preview(&mut self, theme: Theme) -> anyhow::Result<()> {
+        self.set_theme_impl(theme, ThemeAction::Preview)
     }
 
-    pub fn set_theme(&mut self, theme: Theme) {
-        self.set_theme_impl(theme, ThemeAction::Set);
+    pub fn set_theme(&mut self, theme: Theme) -> anyhow::Result<()> {
+        self.set_theme_impl(theme, ThemeAction::Set)
     }
 
-    fn set_theme_impl(&mut self, theme: Theme, preview: ThemeAction) {
+    fn set_theme_impl(&mut self, theme: Theme, preview: ThemeAction) -> anyhow::Result<()> {
         // `ui.selection` is the only scope required to be able to render a theme.
         if theme.find_highlight_exact("ui.selection").is_none() {
-            self.set_error("Invalid theme: `ui.selection` required");
-            return;
+            bail!("Invalid theme: `ui.selection` required");
         }
 
         let scopes = theme.scopes();
@@ -1521,6 +1525,9 @@ impl Editor {
         }
 
         self._refresh();
+        self.config_events.0.send(ConfigEvent::ThemeChanged)?;
+
+        Ok(())
     }
 
     #[inline]
@@ -1633,7 +1640,7 @@ impl Editor {
     }
 
     /// Launch a language server for a given document
-    fn launch_language_servers(&mut self, doc_id: DocumentId) {
+    pub fn launch_language_servers(&mut self, doc_id: DocumentId) {
         if !self.config().lsp.enable {
             return;
         }
@@ -1647,6 +1654,15 @@ impl Editor {
         let (lang, path) = (doc.language.clone(), doc.path().cloned());
         let config = doc.config.load();
         let root_dirs = &config.workspace_lsp_roots;
+
+        if let TrustStatus::Untrusted =
+            helix_loader::workspace_trust::quick_query_workspace(self.config.load().insecure)
+        {
+            self.set_status(
+                "Current workspace is not trusted. Run `:workspace-trust` to enable all features.",
+            );
+            return;
+        };
 
         // store only successfully started language servers
         let language_servers = lang.as_ref().map_or_else(HashMap::default, |language| {
