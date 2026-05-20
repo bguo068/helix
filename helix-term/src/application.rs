@@ -495,7 +495,12 @@ impl Application {
                         colors_ok
                     })
             })
-            .unwrap_or_else(|| editor.theme_loader.default_theme(true_color));
+            .unwrap_or_else(|| {
+                editor
+                    .theme_loader
+                    .load("autumn")
+                    .unwrap_or_else(|_| editor.theme_loader.default_theme(true_color))
+            });
         let _ = editor.set_theme(theme);
     }
 
