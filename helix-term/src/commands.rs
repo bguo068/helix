@@ -616,6 +616,10 @@ impl MappableCommand {
         goto_prev_tabstop, "Goto next snippet placeholder",
         rotate_selections_first, "Make the first selection your primary one",
         rotate_selections_last, "Make the last selection your primary one",
+        send_normal, "Send selected/current line [NOR]",
+        send_normal_cell, "Send current cell [NOR]",
+        send_select,"Send selected text [SEL]",
+        send_select_cell, "Send current cell [NOR]",
     );
 }
 
@@ -748,6 +752,252 @@ fn move_impl(cx: &mut Context, move_fn: MoveFn, dir: Direction, behaviour: Movem
 }
 
 use helix_core::movement::{move_horizontally, move_vertically};
+
+fn send_normal(cx: &mut Context) {
+    let (view, doc) = current!(cx.editor);
+    let selection = doc.selection(view.id);
+    let text = doc.text().slice(..);
+    // get line text
+    let rng = selection.primary();
+    let mut s = rng.head;
+    let mut e = rng.anchor;
+    if s > e {
+        std::mem::swap(&mut s, &mut e);
+    }
+    // If a single letter selected, send whole line; Otherwise send what is
+    // selected. Why? When users want to send a word by press 'w', the editor
+    // mode is still normal for helix which is different from vim. This will not
+    // trigger send_select, so we need to mimic what send_select does, i.e. only
+    // send the select word even if it is still normal mode.
+    if e - s == 1 {
+        let s_line = text.char_to_line(s);
+        let e_line = text.char_to_line(e - 1);
+        if s_line == e_line {
+            s = text.line_to_char(s_line);
+            e = text.line_to_char(s_line + 1);
+        }
+    }
+    let selected_text = text.slice(s..e).to_string();
+    let target = doc.config.load().send_target.clone();
+    if let Err(e) = send_text_multiplexer(selected_text.clone(), target.clone()) {
+        cx.editor.set_status(e);
+    }
+}
+fn send_normal_cell(cx: &mut Context) {
+    let (view, doc) = current!(cx.editor);
+    let selection = doc.selection(view.id);
+    let slice = doc.text().slice(..);
+    let rng = selection.primary();
+    let cell_rng = get_text_in_cell(slice, rng);
+    let mut s = cell_rng.head;
+    let mut e = cell_rng.anchor;
+    if s > e {
+        std::mem::swap(&mut s, &mut e);
+    }
+    let cell_text = slice.slice(s..e).to_string();
+    let target = doc.config.load().send_target.clone();
+    if let Err(e) = send_text_multiplexer(cell_text.clone(), target.clone()) {
+        cx.editor.set_status(e);
+    }
+}
+
+fn send_select(cx: &mut Context) {
+    let (view, doc) = current!(cx.editor);
+    let selection = doc.selection(view.id);
+    let text = doc.text().slice(..);
+    // get line text
+    let rng = selection.primary();
+    let mut s = rng.head;
+    let mut e = rng.anchor;
+    if s > e {
+        std::mem::swap(&mut s, &mut e);
+    }
+    let selected_text = text.slice(s..e).to_string();
+    let target = doc.config.load().send_target.clone();
+    if let Err(e) = send_text_multiplexer(selected_text.clone(), target.clone()) {
+        cx.editor.set_status(e);
+    }
+}
+
+fn send_select_cell(cx: &mut Context) {
+    send_normal_cell(cx);
+}
+
+fn send_text_multiplexer(text: String, target: Option<String>) -> Result<(), String> {
+    let (mutiplexer, which) = match target {
+        Some(target) => {
+            let mut splits = target.split(" ");
+            let muliplexer = match splits.next() {
+                Some(t) => t.to_owned(),
+                None => return Err("missing fields for multiplexer".to_owned()),
+            };
+            let which = match splits.next() {
+                Some(t) => t.to_owned(),
+                None => return Err("missing fields for target".to_owned()),
+            };
+            (muliplexer, which)
+        }
+        None => ("tmux".to_owned(), ":0.1".to_owned()),
+    };
+    use std::process;
+
+    let mut content = text.trim_end().to_owned();
+    // always to add \n to end the block like the indentation for python
+    content.push_str("\n");
+    match mutiplexer.as_str() {
+        "wezterm" => {
+            let pane_id = which.as_str();
+            let mut cmd1 = process::Command::new("wezterm");
+            cmd1.arg("cli")
+                .arg("send-text")
+                .arg("--pane-id")
+                .arg(pane_id)
+                .arg(&content);
+            cmd1.output()
+                .map_err(|_| format!("ERROR in wezterm send-text --pane-id {pane_id}"))?;
+
+            let mut cmd2 = process::Command::new("wezterm");
+            cmd2.arg("cli")
+                .arg("send-text")
+                .arg("--no-paste")
+                .arg("--pane-id")
+                .arg(pane_id)
+                .arg("\n");
+            cmd2.output().map_err(|_| {
+                format!("ERROR in wezterm send-text --pane-id {pane_id} --no-paste")
+            })?;
+        }
+        "zellij" => {
+            let direction = which.as_str();
+            let back_direction = match direction {
+                "left" => "right",
+                "right" => "left",
+                "up" => "down",
+                "down" => "up",
+                _ => return Err("zellij direction can only left, right, up and down".to_owned()),
+            };
+            let mut content_byte_str = String::new();
+            for byte in content.bytes() {
+                use std::fmt::Write;
+                write!(&mut content_byte_str, "{byte} ").unwrap();
+            }
+
+            let mut cmd_before = process::Command::new("zellij");
+            cmd_before.args(["action", "move-focus", direction]);
+            cmd_before
+                .output()
+                .map_err(|_| format!("ERROR in zellij action move-focus {direction}"))?;
+
+            let mut cmd = process::Command::new("zellij");
+            cmd.args(["action", "write"]);
+            cmd.args(["27", "91", "50", "48", "48", "126"]); // paste mode leading part
+            cmd.args(content_byte_str.trim().split(' ')); // actually content
+            cmd.args(["27", "91", "50", "48", "49", "126"]); // paste mode ending part
+            cmd.args(["10"]); // add a return byte
+            cmd.output()
+                .map_err(|_| "ERROR in zellij action write <bytes>".to_owned())?;
+
+            let mut cmd_after = process::Command::new("zellij");
+            cmd_after.args(["action", "move-focus", back_direction]);
+            cmd_after
+                .output()
+                .map_err(|_| format!("ERROR in zellij action move-focus {back_direction}"))?;
+        }
+        "tmux" => {
+            use std::io::Write;
+            let target = which.as_str();
+
+            // send paste mode start
+            let escape_200_tilde_bytes = [0x1B, b'[', b'2', b'0', b'0', b'~']; // \e[201~
+            let mut command = process::Command::new("tmux");
+            command
+                .arg("send-keys")
+                .arg("-t")
+                .arg(target)
+                .arg(std::str::from_utf8(&escape_200_tilde_bytes).unwrap())
+                .output()
+                .map_err(|_| format!("ERROR in tmux send-keys -t {target} <str>"))?;
+
+            // load buffer
+            use std::process::Stdio;
+            let mut cmd = process::Command::new("tmux");
+            cmd.arg("load-buffer").arg("-").stdin(Stdio::piped());
+            let mut child = cmd
+                .spawn()
+                .map_err(|_| "ERROR in tmux load-buffer -".to_owned())?;
+            let mut stdin = child.stdin.take().unwrap();
+            stdin.write_all(content.as_bytes()).unwrap();
+            drop(stdin);
+            child.wait_with_output().unwrap();
+
+            // paste buffer
+            let mut cmd = process::Command::new("tmux");
+            cmd.arg("paste-buffer").arg("-t").arg(target);
+            cmd.output()
+                .map_err(|_| format!("ERROR in tmux paste-buffer -t {target}"))?;
+
+            // send paste mode end
+            let escape_201_tilde_bytes = [0x1B, b'[', b'2', b'0', b'1', b'~']; // \e[201~
+            let mut command = process::Command::new("tmux");
+            command
+                .arg("send-keys")
+                .arg("-t")
+                .arg(target)
+                .arg(std::str::from_utf8(&escape_201_tilde_bytes).unwrap())
+                .arg("\n")
+                .output()
+                .map_err(|_| format!("ERROR in tmux send-keys -t {target} <str>"))?;
+        }
+        _ => return Err("only tmux, zellij and wezterm are supported".to_owned()),
+    }
+
+    Ok(())
+}
+
+fn get_text_in_cell(slice: RopeSlice, range: Range) -> Range {
+    let text = slice;
+    let total_lines = text.len_lines();
+    let cursor_line = range.cursor_line(text);
+
+    // Minimal marker test without introducing regex dependency:
+    // allow leading whitespace, then literal ">#", optional whitespace, then "%%" at the line start.
+    fn is_marker_line(line_slice: RopeSlice) -> bool {
+        let mut s = line_slice.to_string();
+        // strip trailing newline if any
+        if let Some('\n') = s.chars().last() {
+            s.pop();
+        }
+        let trimmed_leading = s.trim_start();
+        // let trimmed_leading = s;
+        if !trimmed_leading.starts_with("#") {
+            return false;
+        }
+        let after = &trimmed_leading[1..]; // after ">#"
+        after.trim_start().starts_with("%%")
+    }
+
+    // find start marker at or above cursor_line
+    let start_line_opt = (0..=cursor_line)
+        .rev()
+        .find(|&ln| is_marker_line(text.line(ln)));
+    let start_line = match start_line_opt {
+        Some(ln) => ln,
+        None => {
+            // no start marker: do not change selection
+            return range;
+        }
+    };
+
+    // find end marker after start_line (strictly after); if not found, set to last line
+    let end_line_opt = ((start_line + 1)..total_lines).find(|&ln| is_marker_line(text.line(ln)));
+    let end_line = end_line_opt.unwrap_or(total_lines).saturating_sub(1);
+
+    // start at the beginning of start_line, end at the char index of line after end_line
+    let start_char = text.line_to_char(start_line);
+    let end_char = text.line_to_char((end_line + 1).min(total_lines));
+
+    Range::new(start_char, end_char).with_direction(range.direction())
+}
 
 fn move_char_left(cx: &mut Context) {
     move_impl(cx, move_horizontally, Direction::Backward, Movement::Move)

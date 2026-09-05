@@ -1,3 +1,100 @@
+## Changes from Upstream
+
+This fork adds commands and keybindings for sending code directly from Helix to a terminal pane (WezTerm, tmux, or Zellij).
+
+## Build and Install
+
+```sh
+#!/usr/bin/env bash
+
+# Clone the repo
+git clone https://github.com/bguo068/helix.git
+cd helix
+
+# Build
+cargo build --profile opt \
+  --config 'build.rustflags="-C target-cpu=native"' \
+  --bin hx \
+  --locked
+
+# Package only the files needed for distribution
+mkdir -p pkg
+rsync -a target/opt/hx pkg/
+rsync -a --exclude='runtime/grammars/sources' runtime pkg/
+```
+
+To install:
+
+- mv `pkg/hx` to a directory in your `$PATH`
+- mv `pkg/runtime` under `~/.config/helix/`
+
+## Usage
+
+### Configure a Target Terminal
+
+Set `send-target` either in `config.toml` or at runtime with a Helix command.
+
+#### Option 1: `config.toml`
+
+```toml
+[editor]
+
+# WezTerm
+send-target = "wezterm 6" # Pane ID 6
+# Find the current pane ID with: echo $WEZTERM_PANE
+
+## tmux
+# send-target = "tmux :0.1"
+## Sends to window 0, pane 1 of the current session
+
+## Zellij
+# send-target = "zellij right"
+## Direction relative to the current pane:
+## left | right | up | down
+```
+
+#### Option 2: Helix Command
+
+```text
+:set-option send-target wezterm 6
+```
+
+### Send Code
+
+| Action | Key |
+|---------|------|
+| Send current line (no selection) | `\\` |
+| Send selected text | `\\` |
+| Send current code block | `\c` |
+
+### Code Blocks
+
+`\c` sends the current block to the target terminal.
+
+Block boundaries are defined by lines beginning with:
+
+```text
+# %%
+```
+
+Example:
+
+```python
+# %%
+x = 1
+y = 2
+
+# %%
+print(x + y)
+```
+
+With the cursor inside either section, `\c` sends only that block.
+
+## Python Notes
+
+For Python workflows, use **IPython** instead of the standard Python REPL. IPython supports bracketed paste mode, which allows multi-line code to be sent correctly.
+
+
 <div align="center">
 
 <h1>

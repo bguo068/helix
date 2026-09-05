@@ -432,6 +432,8 @@ pub struct Config {
     /// Whether to enable Kitty Keyboard Protocol
     pub kitty_keyboard_protocol: KittyKeyboardProtocolConfig,
     pub buffer_picker: BufferPickerConfig,
+    /// Send target, such as "tmux :0.1" or "wezterm 2"
+    pub send_target: Option<String>,
     /// Workspace-trust configuration.
     pub workspace_trust: WorkspaceTrustConfig,
 }
@@ -1239,6 +1241,7 @@ impl Default for Config {
             rainbow_brackets: false,
             kitty_keyboard_protocol: Default::default(),
             buffer_picker: BufferPickerConfig::default(),
+            send_target: Some("tmux :0.1".to_owned()),
             workspace_trust: WorkspaceTrustConfig::default(),
         }
     }
